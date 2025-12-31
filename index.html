@@ -13,7 +13,7 @@
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -28,7 +28,7 @@
         }
         
         .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
             text-align: center;
@@ -66,11 +66,13 @@
             border-radius: 8px;
             font-size: 16px;
             transition: border-color 0.3s;
+            background: white;
+            color: #333;
         }
         
         input:focus, textarea:focus {
             outline: none;
-            border-color: #4facfe;
+            border-color: #667eea;
         }
         
         textarea {
@@ -96,13 +98,13 @@
         }
         
         .analyze-btn {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
         
         .analyze-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
         
         .clear-btn {
@@ -120,7 +122,7 @@
             padding: 30px;
             background: #f8f9fa;
             border-radius: 12px;
-            border-left: 5px solid #4facfe;
+            border-left: 5px solid #667eea;
         }
         
         .score-display {
@@ -175,6 +177,33 @@
             font-size: 1.05em;
         }
         
+        .bias-analysis, .feature-importance {
+            margin-top: 25px;
+        }
+        
+        .bias-info {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            color: #333;
+        }
+        
+        .importance-bar {
+            background: #e9ecef;
+            height: 20px;
+            border-radius: 10px;
+            margin: 5px 0;
+            overflow: hidden;
+        }
+        
+        .importance-fill {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
         .features {
             margin-top: 25px;
         }
@@ -193,6 +222,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            color: #333;
+            border: 1px solid #e1e5e9;
         }
         
         .loading {
@@ -250,6 +281,16 @@
                     <ul id="explanationList"></ul>
                 </div>
                 
+                <div class="bias-analysis">
+                    <h3>Bias Analysis</h3>
+                    <div id="biasInfo"></div>
+                </div>
+                
+                <div class="feature-importance">
+                    <h3>Feature Importance</h3>
+                    <div id="featureImportance"></div>
+                </div>
+                
                 <div class="features">
                     <h3>Detected Features</h3>
                     <div id="featuresGrid" class="features-grid"></div>
@@ -276,41 +317,54 @@
             form.classList.add('loading');
             
             try {
-                const response = await fetch('/analyze', {
+                const response = await fetch('http://localhost:5000/analyze', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ title, content, source })
+                    body: JSON.stringify({
+                        title: title,
+                        content: content,
+                        source: source
+                    })
                 });
                 
                 if (!response.ok) {
-                    throw new Error('Analysis failed');
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const result = await response.json();
-                displayResult(result);
+                displayResults(result);
                 
             } catch (error) {
-                alert('Error analyzing article: ' + error.message);
+                console.error('Error:', error);
+                alert('Error analyzing article. Make sure the backend server is running on port 5000.');
             } finally {
                 form.classList.remove('loading');
             }
         });
         
-        function displayResult(result) {
-            const score = Math.round(result.credibility_score * 100);
-            const level = result.credibility_level.toLowerCase().replace(' ', '-');
-            
-            // Update score display
-            document.getElementById('scoreValue').textContent = score + '%';
-            document.getElementById('credibilityLevel').textContent = result.credibility_level + ' Credibility';
-            
+        function displayResults(result) {
+            const resultDiv = document.getElementById('result');
+            const scoreValue = document.getElementById('scoreValue');
             const scoreCircle = document.getElementById('scoreCircle');
-            scoreCircle.className = `score-circle ${level}`;
-            
-            // Update explanation
+            const credibilityLevel = document.getElementById('credibilityLevel');
             const explanationList = document.getElementById('explanationList');
+            const biasInfo = document.getElementById('biasInfo');
+            const featureImportance = document.getElementById('featureImportance');
+            const featuresGrid = document.getElementById('featuresGrid');
+            
+            // Display score
+            const score = Math.round(result.credibility_score * 100);
+            scoreValue.textContent = score + '%';
+            credibilityLevel.textContent = result.credibility_level + ' Credibility';
+            
+            // Set color based on credibility level
+            const level = result.credibility_level.toLowerCase().replace(' ', '-');
+            scoreCircle.className = `score-circle ${level}`;
+            credibilityLevel.className = `credibility-level ${level}`;
+            
+            // Display explanation
             explanationList.innerHTML = '';
             result.explanation.forEach(item => {
                 const li = document.createElement('li');
@@ -318,50 +372,70 @@
                 explanationList.appendChild(li);
             });
             
-            // Update features
-            const featuresGrid = document.getElementById('featuresGrid');
-            featuresGrid.innerHTML = '';
+            // Display bias analysis (simplified)
+            biasInfo.innerHTML = `
+                <h4>Sentiment Analysis</h4>
+                <p><strong>Polarity:</strong> ${result.features.sentiment_polarity.toFixed(2)} (${getSentimentLabel(result.features.sentiment_polarity)})</p>
+                <p><strong>Subjectivity:</strong> ${result.features.sentiment_subjectivity.toFixed(2)} (${getSubjectivityLabel(result.features.sentiment_subjectivity)})</p>
+            `;
             
-            const featureLabels = {
-                'word_count': 'Word Count',
-                'sentiment_polarity': 'Sentiment',
-                'suspicious_word_count': 'Suspicious Words',
-                'trusted_source': 'Trusted Source',
-                'exclamation_count': 'Exclamations',
-                'caps_ratio': 'Caps Ratio'
-            };
+            // Display feature importance (mock data based on actual features)
+            const importanceData = [
+                { name: 'Source Credibility', value: result.features.trusted_source * 100 },
+                { name: 'Suspicious Words', value: Math.max(0, 100 - result.features.suspicious_word_count * 20) },
+                { name: 'Caps Usage', value: Math.max(0, 100 - result.features.caps_ratio * 200) },
+                { name: 'Sentiment Balance', value: Math.max(0, 100 - Math.abs(result.features.sentiment_polarity) * 100) }
+            ];
             
-            Object.entries(result.features).forEach(([key, value]) => {
-                if (featureLabels[key]) {
-                    const div = document.createElement('div');
-                    div.className = 'feature-item';
-                    
-                    let displayValue = value;
-                    if (key === 'sentiment_polarity') {
-                        displayValue = value > 0 ? 'Positive' : value < 0 ? 'Negative' : 'Neutral';
-                    } else if (key === 'trusted_source') {
-                        displayValue = value ? 'Yes' : 'No';
-                    } else if (key === 'caps_ratio') {
-                        displayValue = Math.round(value * 100) + '%';
-                    }
-                    
-                    div.innerHTML = `
-                        <span>${featureLabels[key]}:</span>
-                        <strong>${displayValue}</strong>
-                    `;
-                    featuresGrid.appendChild(div);
-                }
-            });
+            featureImportance.innerHTML = importanceData.map(item => `
+                <div style="margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>${item.name}</span>
+                        <span>${item.value.toFixed(0)}%</span>
+                    </div>
+                    <div class="importance-bar">
+                        <div class="importance-fill" style="width: ${item.value}%"></div>
+                    </div>
+                </div>
+            `).join('');
             
-            // Show result
-            document.getElementById('result').style.display = 'block';
-            document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+            // Display features
+            const features = [
+                { name: 'Word Count', value: result.features.word_count },
+                { name: 'Character Count', value: result.features.char_count },
+                { name: 'Title Length', value: result.features.title_length },
+                { name: 'Exclamations', value: result.features.exclamation_count },
+                { name: 'Questions', value: result.features.question_count },
+                { name: 'Caps Ratio', value: (result.features.caps_ratio * 100).toFixed(1) + '%' },
+                { name: 'Suspicious Words', value: result.features.suspicious_word_count },
+                { name: 'Trusted Source', value: result.features.trusted_source ? 'Yes' : 'No' }
+            ];
+            
+            featuresGrid.innerHTML = features.map(feature => `
+                <div class="feature-item">
+                    <span>${feature.name}</span>
+                    <strong>${feature.value}</strong>
+                </div>
+            `).join('');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function getSentimentLabel(polarity) {
+            if (polarity > 0.3) return 'Positive';
+            if (polarity < -0.3) return 'Negative';
+            return 'Neutral';
+        }
+        
+        function getSubjectivityLabel(subjectivity) {
+            if (subjectivity > 0.7) return 'Highly Subjective';
+            if (subjectivity > 0.3) return 'Moderately Subjective';
+            return 'Objective';
         }
         
         function clearForm() {
-            document.getElementById('title').value = '';
-            document.getElementById('content').value = '';
-            document.getElementById('source').value = '';
+            document.getElementById('newsForm').reset();
             document.getElementById('result').style.display = 'none';
         }
     </script>
