@@ -186,6 +186,11 @@ class NewsCredibilityAnalyzer:
 # Initialize analyzer
 analyzer = NewsCredibilityAnalyzer()
 
+@app.route('/app')
+def serve_app():
+    with open('index.html', 'r') as f:
+        return f.read()
+
 @app.route('/')
 def home():
     return jsonify({
@@ -225,4 +230,5 @@ def analyze_news():
         return jsonify({'error': f'Analysis failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
