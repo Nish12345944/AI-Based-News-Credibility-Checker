@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 import nltk
 from textblob import TextBlob
@@ -191,14 +191,23 @@ def serve_app():
     with open('index.html', 'r') as f:
         return f.read()
 
+# Read the HTML file content
+with open('../index.html', 'r', encoding='utf-8') as f:
+    HTML_TEMPLATE = f.read()
+
 @app.route('/')
 def home():
+    return render_template_string(HTML_TEMPLATE)
+
+@app.route('/api')
+def api_info():
     return jsonify({
         'message': 'AI News Credibility Checker API',
         'version': '1.0',
         'endpoints': {
             'POST /analyze': 'Analyze news article credibility',
-            'GET /health': 'Check API health'
+            'GET /health': 'Check API health',
+            'GET /api': 'API information'
         }
     })
 
