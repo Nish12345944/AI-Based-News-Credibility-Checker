@@ -186,14 +186,13 @@ class NewsCredibilityAnalyzer:
 # Initialize analyzer
 analyzer = NewsCredibilityAnalyzer()
 
-@app.route('/app')
-def serve_app():
-    with open('index.html', 'r') as f:
-        return f.read()
-
 # Read the HTML file content
-with open('../index.html', 'r', encoding='utf-8') as f:
-    HTML_TEMPLATE = f.read()
+try:
+    with open('../index.html', 'r', encoding='utf-8') as f:
+        HTML_TEMPLATE = f.read()
+except FileNotFoundError:
+    with open('index.html', 'r', encoding='utf-8') as f:
+        HTML_TEMPLATE = f.read()
 
 @app.route('/')
 def home():
